@@ -1,0 +1,428 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // === Global Hardened Primitives ===
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidRoomCode(id) {
+      return id is string && id.size() == 6 && id.matches('^[A-Z0-9]{6}$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getRoom(roomId) {
+      return get(/databases/$(database)/documents/rooms/$(roomId));
+    }
+
+    function isRoomHost(roomId) {
+      return getRoom(roomId).data.hostId == request.auth.uid;
+    }
+
+    function isRoomMember(roomId) {
+      return exists(/databases/$(database)/documents/rooms/$(roomId)/members/$(request.auth.uid));
+    }
+
+    // === Entity Validation Blueprints (Anti-Update-Gap) ===
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'displayName', 'photoURL', 'preferredSeat', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'photoURL', 'preferredSeat', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.preferredSeat is string && data.preferredSeat.size() >= 2 && data.preferredSeat.size() <= 8 && data.preferredSeat.matches('^[A-C][1-8]$')
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'notificationsEnabled', 'autoLandscape', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'notificationsEnabled', 'autoLandscape', 'updatedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() <= 160
+        && data.notificationsEnabled is bool
+        && data.autoLandscape is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRecentRoom(data) {
+      return data.keys().hasAll(['roomId', 'code', 'name', 'isPublic', 'lastVideoId', 'lastVideoTitle', 'joinedAt'])
+        && data.keys().hasOnly(['roomId', 'code', 'name', 'isPublic', 'lastVideoId', 'lastVideoTitle', 'joinedAt'])
+        && isValidRoomCode(data.roomId)
+        && isValidRoomCode(data.code)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+        && data.isPublic is bool
+        && data.lastVideoId is string && data.lastVideoId.size() <= 20
+        && data.lastVideoTitle is string && data.lastVideoTitle.size() <= 140
+        && data.joinedAt is timestamp;
+    }
+
+    function isValidCinemaRoom(data) {
+      return data.keys().hasAll([
+          'id', 'code', 'name', 'isPublic', 'status', 'hostId', 'hostName',
+          'createdBy', 'currentVideoId', 'currentVideoTitle', 'videoQuality',
+          'syncEnabled', 'voiceChatEnabled', 'memberUids', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'code', 'name', 'isPublic', 'status', 'hostId', 'hostName',
+          'createdBy', 'currentVideoId', 'currentVideoTitle', 'videoQuality',
+          'syncEnabled', 'voiceChatEnabled', 'memberUids',
+          'isPlaying', 'playbackPosition', 'playbackUpdatedAt',
+          'sourceMode', 'browserUrl', 'browserQuery',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidRoomCode(data.id)
+        && isValidRoomCode(data.code)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 60
+        && data.isPublic is bool
+        && data.status in ['open', 'closed']
+        && isValidId(data.hostId)
+        && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 60
+        && isValidId(data.createdBy)
+        && data.currentVideoId is string && data.currentVideoId.size() <= 20
+        && data.currentVideoTitle is string && data.currentVideoTitle.size() <= 140
+        && data.videoQuality in ['auto', 'hd1080', 'hd720', 'large']
+        && data.syncEnabled is bool
+        && data.voiceChatEnabled is bool
+        && data.memberUids is list && data.memberUids.size() <= 24
+        && (data.memberUids.size() == 0 || data.memberUids[0] is string)
+        && (!('isPlaying' in data) || data.isPlaying is bool)
+        && (!('playbackPosition' in data) || (data.playbackPosition is number && data.playbackPosition >= 0 && data.playbackPosition <= 86400))
+        && (!('playbackUpdatedAt' in data) || (data.playbackUpdatedAt is number && data.playbackUpdatedAt >= 0))
+        && (!('sourceMode' in data) || data.sourceMode in ['youtube', 'browser'])
+        && (!('browserUrl' in data) || (data.browserUrl is string && data.browserUrl.size() <= 600))
+        && (!('browserQuery' in data) || (data.browserQuery is string && data.browserQuery.size() <= 160))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoomMember(data) {
+      return data.keys().hasAll(['uid', 'roomId', 'displayName', 'photoURL', 'seatId', 'seatTier', 'isPublicRoom', 'joinedAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'roomId', 'displayName', 'photoURL', 'seatId', 'seatTier', 'isPublicRoom', 'joinedAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && isValidRoomCode(data.roomId)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 60
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && data.seatId is string && data.seatId.size() <= 8
+        && data.seatTier in ['recliner', 'prime', 'classic']
+        && data.isPublicRoom is bool
+        && data.joinedAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQueueItem(data) {
+      return data.keys().hasAll(['id', 'roomId', 'videoId', 'title', 'addedByUid', 'addedByName', 'order', 'status', 'isPublicRoom', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'roomId', 'videoId', 'title', 'addedByUid', 'addedByName', 'order', 'status', 'isPublicRoom', 'visibleToUids', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && isValidRoomCode(data.roomId)
+        && data.videoId is string && data.videoId.size() == 11 && data.videoId.matches('^[a-zA-Z0-9_\\-]{11}$')
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 140
+        && isValidId(data.addedByUid)
+        && data.addedByName is string && data.addedByName.size() >= 1 && data.addedByName.size() <= 60
+        && data.order is number && data.order >= 0 && data.order <= 10000
+        && data.status in ['pending', 'approved', 'played']
+        && data.isPublicRoom is bool
+        && (!('visibleToUids' in data) || (data.visibleToUids is list && data.visibleToUids.size() <= 24 && (data.visibleToUids.size() == 0 || data.visibleToUids[0] is string)))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data) {
+      return data.keys().hasAll(['id', 'roomId', 'senderUid', 'senderName', 'senderAvatar', 'text', 'isPublicRoom', 'createdAt'])
+        && data.keys().hasOnly(['id', 'roomId', 'senderUid', 'senderName', 'senderAvatar', 'text', 'isPublicRoom', 'visibleToUids', 'createdAt'])
+        && isValidId(data.id)
+        && isValidRoomCode(data.roomId)
+        && isValidId(data.senderUid)
+        && data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 60
+        && data.senderAvatar is string && data.senderAvatar.size() <= 500
+        && data.text is string && data.text.size() >= 1 && data.text.size() <= 400
+        && data.isPublicRoom is bool
+        && (!('visibleToUids' in data) || (data.visibleToUids is list && data.visibleToUids.size() <= 24 && (data.visibleToUids.size() == 0 || data.visibleToUids[0] is string)))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWatchParty(data) {
+      return data.keys().hasAll(['id', 'title', 'roomCode', 'hostId', 'hostName', 'videoId', 'videoTitle', 'scheduledFor', 'isPublic', 'createdAt'])
+        && data.keys().hasOnly(['id', 'title', 'roomCode', 'hostId', 'hostName', 'videoId', 'videoTitle', 'scheduledFor', 'isPublic', 'createdAt'])
+        && isValidId(data.id)
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 80
+        && isValidRoomCode(data.roomCode)
+        && isValidId(data.hostId)
+        && data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 60
+        && data.videoId is string && data.videoId.size() == 11 && data.videoId.matches('^[a-zA-Z0-9_\\-]{11}$')
+        && data.videoTitle is string && data.videoTitle.size() >= 1 && data.videoTitle.size() <= 140
+        && data.scheduledFor is string && data.scheduledFor.size() >= 10 && data.scheduledFor.size() <= 40
+        && data.isPublic is bool
+        && data.createdAt is timestamp;
+    }
+
+    // === Collection Rules ===
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId);
+      allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+      allow create: if isVerified() && isValidId(userId) && userId == request.auth.uid
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidId(userId) && userId == request.auth.uid
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'preferredSeat', 'updatedAt']);
+      allow delete: if false;
+
+      match /private/{docId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidId(docId) && userId == request.auth.uid;
+        allow list: if isSignedIn() && resource.data.uid == request.auth.uid;
+        allow create: if isVerified() && isValidId(userId) && docId == 'info' && userId == request.auth.uid
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().updatedAt == request.time;
+        allow update: if isVerified() && isValidId(userId) && docId == 'info' && userId == request.auth.uid
+          && isValidUserPrivateInfo(incoming())
+          && incoming().uid == existing().uid
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['email', 'notificationsEnabled', 'autoLandscape', 'updatedAt']);
+        allow delete: if false;
+      }
+
+      match /recentRooms/{roomId} {
+        allow get: if isSignedIn() && isValidId(userId) && isValidRoomCode(roomId) && userId == request.auth.uid;
+        allow list: if isSignedIn() && userId == request.auth.uid && resource.data.roomId is string;
+        allow create: if isVerified() && isValidId(userId) && isValidRoomCode(roomId) && userId == request.auth.uid
+          && isValidRecentRoom(incoming())
+          && incoming().roomId == roomId
+          && incoming().joinedAt == request.time;
+        allow update: if isVerified() && isValidId(userId) && isValidRoomCode(roomId) && userId == request.auth.uid
+          && isValidRecentRoom(incoming())
+          && incoming().roomId == existing().roomId
+          && incoming().code == existing().code
+          && incoming().joinedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'isPublic', 'lastVideoId', 'lastVideoTitle', 'joinedAt']);
+        allow delete: if isVerified() && isValidId(userId) && isValidRoomCode(roomId) && userId == request.auth.uid;
+      }
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isSignedIn() && isValidRoomCode(roomId);
+      allow list: if isSignedIn() && (
+        resource.data.isPublic == true
+        || resource.data.hostId == request.auth.uid
+        || resource.data.createdBy == request.auth.uid
+        || request.auth.uid in resource.data.memberUids
+      );
+      allow create: if isVerified() && isValidRoomCode(roomId)
+        && isValidCinemaRoom(incoming())
+        && incoming().id == roomId
+        && incoming().code == roomId
+        && incoming().hostId == request.auth.uid
+        && incoming().createdBy == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().memberUids.size() == 1
+        && incoming().memberUids[0] == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerified() && isValidRoomCode(roomId)
+        && isValidCinemaRoom(incoming())
+        && existing().status == 'open'
+        && incoming().id == existing().id
+        && incoming().code == existing().code
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Host updates room video, live playback state, & settings
+          (
+            existing().hostId == request.auth.uid
+            && incoming().hostId == existing().hostId
+            && incoming().status == 'open'
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name', 'isPublic', 'currentVideoId', 'currentVideoTitle',
+              'videoQuality', 'syncEnabled', 'voiceChatEnabled',
+              'isPlaying', 'playbackPosition', 'playbackUpdatedAt',
+              'sourceMode', 'browserUrl', 'browserQuery', 'updatedAt'
+            ])
+          )
+          // Action 2: Host transfers host role to an existing member
+          || (
+            existing().hostId == request.auth.uid
+            && incoming().status == 'open'
+            && incoming().hostId in existing().memberUids
+            && incoming().diff(existing()).affectedKeys().hasOnly(['hostId', 'hostName', 'updatedAt'])
+          )
+          // Action 3: Host closes room (terminal state)
+          || (
+            existing().hostId == request.auth.uid
+            && incoming().status == 'closed'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+          // Action 4: Host removes a member (preserving host in list)
+          || (
+            existing().hostId == request.auth.uid
+            && incoming().status == 'open'
+            && incoming().hostId == existing().hostId
+            && existing().hostId in incoming().memberUids
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+          )
+          // Action 5: Member self-join (can only append own UID)
+          || (
+            incoming().status == 'open'
+            && incoming().hostId == existing().hostId
+            && !(request.auth.uid in existing().memberUids)
+            && request.auth.uid in incoming().memberUids
+            && incoming().memberUids.hasAll(existing().memberUids)
+            && incoming().memberUids.size() == existing().memberUids.size() + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+          )
+          // Action 6: Member self-leave (can only remove own UID)
+          || (
+            incoming().status == 'open'
+            && incoming().hostId == existing().hostId
+            && request.auth.uid in existing().memberUids
+            && !(request.auth.uid in incoming().memberUids)
+            && existing().memberUids.hasAll(incoming().memberUids)
+            && incoming().memberUids.size() == existing().memberUids.size() - 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])
+          )
+        );
+      allow delete: if isVerified() && isValidRoomCode(roomId) && existing().hostId == request.auth.uid;
+
+      match /members/{memberId} {
+        allow get: if isSignedIn() && isValidRoomCode(roomId) && isValidId(memberId) && (
+          memberId == request.auth.uid
+          || getRoom(roomId).data.isPublic == true
+          || request.auth.uid in getRoom(roomId).data.memberUids
+        );
+        allow list: if isSignedIn() && (
+          resource.data.isPublicRoom == true
+          || resource.data.uid == request.auth.uid
+        );
+        allow create: if isVerified() && isValidRoomCode(roomId) && isValidId(memberId)
+          && memberId == request.auth.uid
+          && isValidRoomMember(incoming())
+          && incoming().uid == request.auth.uid
+          && incoming().roomId == roomId
+          && incoming().joinedAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && getRoom(roomId).data.status == 'open';
+        allow update: if isVerified() && isValidRoomCode(roomId) && isValidId(memberId)
+          && memberId == request.auth.uid
+          && isValidRoomMember(incoming())
+          && incoming().uid == existing().uid
+          && incoming().roomId == existing().roomId
+          && incoming().joinedAt == existing().joinedAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL', 'seatId', 'seatTier', 'updatedAt'])
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && getRoom(roomId).data.status == 'open';
+        allow delete: if isVerified() && isValidRoomCode(roomId) && isValidId(memberId)
+          && (memberId == request.auth.uid || isRoomHost(roomId));
+      }
+
+      match /queue/{itemId} {
+        allow get: if isSignedIn() && isValidRoomCode(roomId) && isValidId(itemId) && (
+          getRoom(roomId).data.isPublic == true
+          || request.auth.uid in getRoom(roomId).data.memberUids
+        );
+        allow list: if isSignedIn() && (
+          resource.data.isPublicRoom == true
+          || resource.data.addedByUid == request.auth.uid
+          || ('visibleToUids' in resource.data && request.auth.uid in resource.data.visibleToUids)
+        );
+        allow create: if isVerified() && isValidRoomCode(roomId) && isValidId(itemId)
+          && isValidQueueItem(incoming())
+          && incoming().id == itemId
+          && incoming().roomId == roomId
+          && incoming().addedByUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && getRoom(roomId).data.status == 'open'
+          && (request.auth.uid in getRoom(roomId).data.memberUids || isRoomMember(roomId));
+        allow update: if isVerified() && isValidRoomCode(roomId) && isValidId(itemId)
+          && isValidQueueItem(incoming())
+          && existing().status != 'played'
+          && incoming().id == existing().id
+          && incoming().roomId == existing().roomId
+          && incoming().addedByUid == existing().addedByUid
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && isRoomHost(roomId)
+          && incoming().diff(existing()).affectedKeys().hasOnly(['order', 'status', 'updatedAt']);
+        allow delete: if isVerified() && isValidRoomCode(roomId) && isValidId(itemId)
+          && (existing().addedByUid == request.auth.uid || isRoomHost(roomId));
+      }
+
+      match /messages/{messageId} {
+        allow get: if isSignedIn() && isValidRoomCode(roomId) && isValidId(messageId) && (
+          getRoom(roomId).data.isPublic == true
+          || request.auth.uid in getRoom(roomId).data.memberUids
+        );
+        allow list: if isSignedIn() && (
+          resource.data.isPublicRoom == true
+          || resource.data.senderUid == request.auth.uid
+          || ('visibleToUids' in resource.data && request.auth.uid in resource.data.visibleToUids)
+        );
+        allow create: if isVerified() && isValidRoomCode(roomId) && isValidId(messageId)
+          && isValidChatMessage(incoming())
+          && incoming().id == messageId
+          && incoming().roomId == roomId
+          && incoming().senderUid == request.auth.uid
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/rooms/$(roomId))
+          && getRoom(roomId).data.status == 'open'
+          && (request.auth.uid in getRoom(roomId).data.memberUids || isRoomMember(roomId));
+        allow update: if false;
+        allow delete: if isVerified() && isValidRoomCode(roomId) && isValidId(messageId)
+          && (existing().senderUid == request.auth.uid || isRoomHost(roomId));
+      }
+    }
+
+    match /watchParties/{partyId} {
+      allow get: if isSignedIn() && isValidId(partyId) && (
+        existing().isPublic == true
+        || existing().hostId == request.auth.uid
+      );
+      allow list: if isSignedIn() && (
+        resource.data.isPublic == true
+        || resource.data.hostId == request.auth.uid
+      );
+      allow create: if isVerified() && isValidId(partyId)
+        && isValidWatchParty(incoming())
+        && incoming().id == partyId
+        && incoming().hostId == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update: if isVerified() && isValidId(partyId)
+        && isValidWatchParty(incoming())
+        && existing().hostId == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().hostId == existing().hostId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'scheduledFor', 'isPublic', 'videoId', 'videoTitle']);
+      allow delete: if isVerified() && isValidId(partyId) && existing().hostId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Public cinema profile for a CineHall member (contains zero PII).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "preferredSeat": { "type": "string", "maxLength": 8, "pattern": "^[A-C][1-8]$" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "photoURL", "preferredSeat", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly private user PII and account settings readable only by the owner.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 160 },
+        "notificationsEnabled": { "type": "boolean" },
+        "autoLandscape": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "notificationsEnabled", "autoLandscape", "updatedAt"]
+    },
+    "RecentRoom": {
+      "title": "RecentRoom",
+      "description": "User's recently joined cinema room entry for fast re-entry.",
+      "type": "object",
+      "properties": {
+        "roomId": { "type": "string", "minLength": 4, "maxLength": 20, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "code": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "isPublic": { "type": "boolean" },
+        "lastVideoId": { "type": "string", "maxLength": 20 },
+        "lastVideoTitle": { "type": "string", "maxLength": 140 },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["roomId", "code", "name", "isPublic", "lastVideoId", "lastVideoTitle", "joinedAt"]
+    },
+    "CinemaRoom": {
+      "title": "CinemaRoom",
+      "description": "A virtual YVR watch party room persisted in Firestore with real-time playback sync fields.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "code": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "isPublic": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["open", "closed"] },
+        "hostId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "createdBy": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "currentVideoId": { "type": "string", "maxLength": 20 },
+        "currentVideoTitle": { "type": "string", "maxLength": 140 },
+        "videoQuality": { "type": "string", "enum": ["auto", "hd1080", "hd720", "large"] },
+        "syncEnabled": { "type": "boolean" },
+        "voiceChatEnabled": { "type": "boolean" },
+        "memberUids": { "type": "array" },
+        "isPlaying": { "type": "boolean" },
+        "playbackPosition": { "type": "number" },
+        "playbackUpdatedAt": { "type": "number" },
+        "sourceMode": { "type": "string", "enum": ["youtube", "browser"] },
+        "browserUrl": { "type": "string", "maxLength": 600 },
+        "browserQuery": { "type": "string", "maxLength": 160 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "code",
+        "name",
+        "isPublic",
+        "status",
+        "hostId",
+        "hostName",
+        "createdBy",
+        "currentVideoId",
+        "currentVideoTitle",
+        "videoQuality",
+        "syncEnabled",
+        "voiceChatEnabled",
+        "memberUids",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "RoomMember": {
+      "title": "RoomMember",
+      "description": "A member inside a cinema room with seat assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roomId": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "photoURL": { "type": "string", "maxLength": 500 },
+        "seatId": { "type": "string", "maxLength": 8 },
+        "seatTier": { "type": "string", "enum": ["recliner", "prime", "classic"] },
+        "isPublicRoom": { "type": "boolean" },
+        "joinedAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "roomId", "displayName", "photoURL", "seatId", "seatTier", "isPublicRoom", "joinedAt", "updatedAt"]
+    },
+    "QueueItem": {
+      "title": "QueueItem",
+      "description": "An upcoming YouTube video in a room's watch queue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roomId": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "videoId": { "type": "string", "minLength": 11, "maxLength": 11, "pattern": "^[a-zA-Z0-9_\\-]{11}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "addedByUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "addedByName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "order": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "approved", "played"] },
+        "isPublicRoom": { "type": "boolean" },
+        "visibleToUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "videoId", "title", "addedByUid", "addedByName", "order", "status", "isPublicRoom", "createdAt", "updatedAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "A chat message posted inside a CineHall room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "roomId": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "senderUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "senderName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "senderAvatar": { "type": "string", "maxLength": 500 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "isPublicRoom": { "type": "boolean" },
+        "visibleToUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "roomId", "senderUid", "senderName", "senderAvatar", "text", "isPublicRoom", "createdAt"]
+    },
+    "WatchParty": {
+      "title": "WatchParty",
+      "description": "An upcoming scheduled watch party event.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "roomCode": { "type": "string", "minLength": 6, "maxLength": 6, "pattern": "^[A-Z0-9]{6}$" },
+        "hostId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "hostName": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "videoId": { "type": "string", "minLength": 11, "maxLength": 11, "pattern": "^[a-zA-Z0-9_\\-]{11}$" },
+        "videoTitle": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "scheduledFor": { "type": "string", "minLength": 10, "maxLength": 40 },
+        "isPublic": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "roomCode", "hostId", "hostName", "videoId", "videoTitle", "scheduledFor", "isPublic", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Public cinema user profiles (displayName, photoURL, preferredSeat)."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Strictly private user PII (email, notification & orientation preferences)."
+    },
+    "/users/{userId}/recentRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/RecentRoom" },
+      "description": "User's recently visited CineHall rooms."
+    },
+    "/rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/CinemaRoom" },
+      "description": "Persistent virtual PVR cinema rooms."
+    },
+    "/rooms/{roomId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/RoomMember" },
+      "description": "Members and seat reservations inside a cinema room."
+    },
+    "/rooms/{roomId}/queue/{itemId}": {
+      "schema": { "$ref": "#/entities/QueueItem" },
+      "description": "Upcoming YouTube watch queue for a cinema room."
+    },
+    "/rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Persistent chat messages for a cinema room."
+    },
+    "/watchParties/{partyId}": {
+      "schema": { "$ref": "#/entities/WatchParty" },
+      "description": "Upcoming scheduled watch parties."
+    }
+  }
+}

@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-cinema-black: #070506;
+  --color-cinema-obsidian: #0E090B;
+  --color-cinema-surface: #160E11;
+  --color-cinema-elevated: #1E1317;
+  --color-velvet-deep: #4A0B18;
+  --color-velvet-crimson: #9E1B32;
+  --color-velvet-glow: #C8233F;
+  --color-champagne: #E5C17B;
+  --color-champagne-soft: #F3DBA8;
+}
+
+@layer base {
+  html {
+    height: 100%;
+    background-color: #070506;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+  }
+
+  body,
+  #root {
+    min-height: 100dvh;
+    background-color: #070506;
+    color: #F5EFEA;
+    font-family: var(--font-sans);
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  /* Prevent iOS/Android mobile browsers from auto-zooming when focusing inputs */
+  @media (max-width: 768px) {
+    input,
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
+  }
+}
+
+.cinema-cta-gradient {
+  background: linear-gradient(180deg, #B91C3B 0%, #7F1126 100%);
+  box-shadow: 0 8px 28px rgba(185, 28, 59, 0.34), inset 0 1px 0 rgba(255, 215, 222, 0.25);
+}
+
+.cinema-cta-gradient:hover {
+  background: linear-gradient(180deg, #CE2244 0%, #8F152D 100%);
+  box-shadow: 0 10px 32px rgba(206, 34, 68, 0.44), inset 0 1px 0 rgba(255, 225, 230, 0.3);
+}
+
+.cinema-glass {
+  background: rgba(20, 13, 16, 0.76);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.cinema-glass-light {
+  background: rgba(34, 22, 27, 0.64);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.champagne-text {
+  background: linear-gradient(180deg, #FFF0C9 0%, #E5C17B 52%, #B5873A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior: contain;
+}
+
+.px-safe {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Custom sleek dark scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(229, 193, 123, 0.18);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 193, 123, 0.34);
+}
